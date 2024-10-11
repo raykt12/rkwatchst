@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Watch Party</title>
+    <link href="https://vjs.zencdn.net/7.11.4/video-js.css" rel="stylesheet" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 5px; }
+        .video-js { width: 100%; max-width: 600px; }
+    </style>
+</head>
+<body>
+    <h1>Video Watch Party</h1>
+    <input type="text" id="videoUrl" placeholder="Enter video URL" value="https://www.w3schools.com/html/mov_bbb.mp4" />
+    <button id="startButton">Start Watch Party</button>
+    <video id="video" class="video-js" controls></video>
+     
+    <script src="https://vjs.zencdn.net/7.11.4/video.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const videoElement = document.getElementById('video');
+        const videoUrlInput = document.getElementById('videoUrl');
+        const startButton = document.getElementById('startButton');
+
+        const socket = io();
+
+        // Initialize Video.js player
+        const player = videojs(videoElement);
+
+        // Automatically play the default video on load
+        window.onload = () => {
+            playMovie(videoUrlInput.value); // Play default URL
+        };
+
+        // Start watch party
+        startButton.onclick = () => {
+            const url = videoUrlInput.value;
+            if (url) {
+                playMovie(url);
+                socket.emit('setVideo', url); // Emit the new URL to all users
+            }
+        };
+        
+
+        function playMovie(url) {
+            player.src({ type: "video/mp4", src: url });
+            player.play();
+            socket.emit('play');
+        }
+
+        player.on('play', () => {
+            socket.emit('play');
+        });
+
+        player.on('pause', () => {
+            socket.emit('pause');
+        });
+
+        player.on('seeked', () => {
+            socket.emit('seek', player.currentTime());
+        });
+
+        // Listen for synchronization events
+        socket.on('play', () => {
+            if (player.paused()) {
+                player.play();
+            }
+        });
+
+        socket.on('pause', () => {
+            if (!player.paused()) {
+                player.pause();
+            }
+        });
+
+        socket.on('seek', (time) => {
+            if (Math.abs(player.currentTime() - time) > 0.1) {
+                player.currentTime(time);
+            }
+        });
+
+        // Synchronize video URL for all users
+        socket.on('setVideo', (url) => {
+            if (player.src() !== url) { // Only change if it's different
+                playMovie(url); // Automatically play the video for all users
+                videoUrlInput.value = url; // Update input field to show the new URL
+            }
+        });
+    </script>
+</body>
+</html>
